@@ -1,48 +1,51 @@
 import {
-  ArgumentsHost,
-  Catch,
-  ExceptionFilter,
-  HttpException,
-  HttpStatus,
-  Logger,
-} from '@nestjs/common';
-import type { Response } from 'express';
+	type ArgumentsHost,
+	Catch,
+	type ExceptionFilter,
+	HttpException,
+	Logger,
+} from "@nestjs/common";
+import type { Request, Response } from "express";
 
-@Catch() // 不写具体类 => 捕获所有异常
+@Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  private readonly logger = new Logger(AllExceptionsFilter.name);
+	private readonly logger = new Logger(AllExceptionsFilter.name);
 
-  catch(exception: unknown, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+	catch(exception: unknown, host: ArgumentsHost) {
+		const ctx = host.switchToHttp();
+		const response = ctx.getResponse<Response>();
+		const request = ctx.getRequest<Request>();
 
-    /* ① 判断类型 */
-    const isHttpException = exception instanceof HttpException;
-    const status = isHttpException
-      ? exception.getStatus()
-      : HttpStatus.INTERNAL_SERVER_ERROR;
+		let statusCode = 500;
+		let message: string | string[] = "Internal server error";
 
-    /* ② 规范化错误对象（可以扩展 code、traceId 等字段） */
-    const message = isHttpException
-      ? exception.message
-      : 'Internal server error';
+		if (exception instanceof HttpException) {
+			const exceptionResponse = exception.getResponse();
+			statusCode = exception.getStatus();
 
-    const stack = exception instanceof Error ? exception.stack : undefined;
+			if (typeof exceptionResponse === "string") {
+				message = exceptionResponse;
+			} else if (typeof exceptionResponse === "object") {
+				message =
+					(exceptionResponse as { message: string | string[] })?.message ||
+					exception.message;
+			}
+		}
 
-    /* ③ 统一日志输出 */
-    this.logger.error(
-      `[${request.method}] ${request.url} -> ${status} ${message}`,
-      stack,
-    );
+		// 处理数组格式的 message
+		if (Array.isArray(message)) {
+			message = message.join("; ");
+		}
 
-    /* ④ 返回统一响应结构 */
-    response.status(status).json({
-      code: status, // 业务可替换为自定义 errorCode
-      message,
-      data: null,
-      path: request.url,
-      timestamp: new Date().toISOString(),
-    });
-  }
+		this.logger.error(
+			`[${request.method}] ${request.url} -> ${statusCode} ${message}`,
+		);
+
+		response.status(statusCode).json({
+			code: statusCode,
+			message,
+			path: request.url,
+			timestamp: new Date().toISOString(),
+		});
+	}
 }

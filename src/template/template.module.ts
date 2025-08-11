@@ -1,9 +1,13 @@
-import { Module } from '@nestjs/common';
-import { TemplateService } from './template.service';
-import { TemplateController } from './template.controller';
+import { forwardRef, Module } from "@nestjs/common";
+import { DutiesModule } from "../duties/duties.module";
+import { TemplateController } from "./template.controller";
+import { TemplateService } from "./template.service";
+import { TemplateVariablesService } from "./variable.service";
 
 @Module({
-  providers: [TemplateService],
-  controllers: [TemplateController],
+	imports: [forwardRef(() => DutiesModule)],
+	providers: [TemplateService, TemplateVariablesService],
+	controllers: [TemplateController],
+	exports: [TemplateVariablesService],
 })
 export class TemplateModule {}
